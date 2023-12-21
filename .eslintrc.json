@@ -7,6 +7,7 @@
     "no-console": "warn",
     "consistent-return": "off",
     "func-names": "off",
+    "prefer-arrow-callback" :"off",
     "prefer-object-spread" : "off",
     "import/no-extraneous-dependencies": ["error", {"devDependencies": true}],
     "object-shorthand": "off",
@@ -21,4 +22,3 @@
     
   }
 }
-
