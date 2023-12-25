@@ -23,7 +23,7 @@ exports.signup = catchAsync(async function (req, res, next) {
     ConfirmPassword: req.body.ConfirmPassword,
     photo: req.body.photo || undefined,
     passwordChangedAt: req.body.passwordChangedAt || undefined,
-    role: req.body.role || undefined,
+    // role: req.body.role || undefined,
   });
 
   // implementing jwt for user creation
