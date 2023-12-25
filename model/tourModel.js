@@ -30,13 +30,13 @@ const tourSchema = new mongoose.Schema(
       require: [true, 'A tour must have a difficulty'],
     },
     isSecret: Boolean,
-    ratingAverage: {
+    ratingsAverage: {
       type: Number,
       min: [1, 'A rating should be above 1'],
       max: [5, 'A rating should be below 5'],
       default: 4.5,
     },
-    ratingQuantity: {
+    ratingsQuantity: {
       type: Number,
       default: 0,
     },
@@ -60,8 +60,44 @@ const tourSchema = new mongoose.Schema(
       type: Date,
       default: Date.now(),
     },
+
     startsDate: [Date],
+
+    // GEOJSON
+
+    startLocation: {
+      type: {
+        type: String,
+        default: 'Point',
+        enum: ['Point'],
+      },
+      coordinates: [Number],
+      address: String,
+      description: String,
+    },
+
+    locations: [
+      {
+        type: {
+          type: String,
+          default: 'Point',
+          enum: ['Point'],
+        },
+        coordinates: [Number],
+        address: String,
+        description: String,
+        day: Number,
+      },
+    ],
+
+    guides: [
+      {
+        type: mongoose.Schema.ObjectId,
+        ref: 'User',
+      },
+    ],
   },
+
   { toJSON: { virtuals: true }, toObject: { virtuals: true } },
 );
 
@@ -69,6 +105,14 @@ const tourSchema = new mongoose.Schema(
 
 tourSchema.virtual('durationInWeeks').get(function () {
   return this.duration / 7;
+});
+
+// using virtual populate for populating reviews inside of tour
+
+tourSchema.virtual('reviews', {
+  ref: 'Review',
+  foreignField: 'tour',
+  localField: '_id',
 });
 
 // Document middleware / now we want to add slug to our document when we save a document
@@ -86,6 +130,16 @@ tourSchema.pre('save', function (next) {
 tourSchema.pre(/^find/, function (next) {
   // here "this mean the query that we are using so far that's why our find query work's "
   this.find({ isSecret: { $ne: true } });
+  next();
+});
+
+/// using populate for getting user data into tour guides
+
+tourSchema.pre(/^find/, function (next) {
+  this.populate({
+    path: 'guides',
+    select: '-__v -passwordChangedAt',
+  });
   next();
 });
 

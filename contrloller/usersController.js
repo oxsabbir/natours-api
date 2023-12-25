@@ -2,6 +2,8 @@ const User = require('../model/userModel');
 const AppError = require('../utils/AppError');
 const catchAsync = require('../utils/catchAsync');
 
+const factory = require('./factoryHandler');
+
 const filterBody = function (body, ...allowedProps) {
   const newBody = {};
   Object.keys(body).forEach((item) => {
@@ -68,15 +70,11 @@ exports.createUser = (req, res) => {
     message: 'This is not defined yet',
   });
 };
+
 exports.updateUser = (req, res) => {
   res.status(500).json({
     status: 'error',
     message: 'This is not defined yet',
   });
 };
-exports.deleteUser = (req, res) => {
-  res.status(500).json({
-    status: 'error',
-    message: 'This is not defined yet',
-  });
-};
+exports.deleteUser = factory.deleteOne(User);

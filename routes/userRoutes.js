@@ -32,6 +32,10 @@ router
   .route('/:id')
   .get(usersController.getUser)
   .patch(usersController.updateUser)
-  .delete(usersController.deleteUser);
+  .delete(
+    authController.protect,
+    authController.ristrictTo('user', 'lead-guide', 'lead'),
+    usersController.deleteUser,
+  );
 
 module.exports = router;
