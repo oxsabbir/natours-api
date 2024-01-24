@@ -9,7 +9,7 @@
     "func-names": "off",
     "prefer-arrow-callback" :"off",
     "prefer-object-spread" : "off",
-    "import/no-extraneous-dependencies": ["error", {"devDependencies": true}],
+    "import/no-extraneous-dependencies": ["warn", {"devDependencies": true}],
     "object-shorthand": "off",
     "no-process-exit": "off",
     "no-param-reassign": "off",

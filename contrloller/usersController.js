@@ -1,4 +1,8 @@
+const sharp = require('sharp');
+const multer = require('multer');
+
 const User = require('../model/userModel');
+
 const AppError = require('../utils/AppError');
 const catchAsync = require('../utils/catchAsync');
 
@@ -12,17 +16,53 @@ const filterBody = function (body, ...allowedProps) {
   return newBody;
 };
 
-// user handler
-exports.getAllUser = catchAsync(async (req, res) => {
-  const userData = await User.find();
-  res.status(200).json({
-    status: 'success',
-    results: userData.length,
-    data: {
-      users: userData,
-    },
-  });
+// IN this way we can directly save our file in filesystem
+
+// const multerStorage = multer.diskStorage({
+//   destination: (req, file, cb) => {
+//     cb(null, 'public/img/users');
+//   },
+//   filename: (req, file, cb) => {
+//     const ext = file.mimetype.split('/')[1];
+//     cb(null, `user-${req.user.id}-${Date.now()}.${ext}`);
+//   },
+// });
+
+// IN this we are saving our data in memory and process it before saving to filesystem
+// when we use memory buffer we get our file in req.file.buffer
+const multerStorage = multer.memoryStorage();
+
+const fileFilter = function (req, file, cb) {
+  if (file.mimetype.startsWith('image')) {
+    cb(null, true);
+  } else {
+    cb(new AppError('Not an image! Please upload images.', 400));
+  }
+};
+
+const uplaod = multer({
+  storage: multerStorage,
+  fileFilter,
 });
+
+// process image before savign
+exports.resizeUserPhoto = catchAsync(async function (req, res, next) {
+  req.file.filename = `user-${req.user.id}-${Date.now()}.jpeg`;
+
+  await sharp(req.file.buffer)
+    .resize(500, 500)
+    .toFormat('jpeg')
+    .jpeg({ quality: 90 })
+    .toFile(`public/img/users/${req.file.filename}`);
+
+  next();
+});
+
+// upload image
+exports.uploadUserPhoto = uplaod.single('photo');
+
+// user handler
+exports.getAllUser = factory.getAll(User);
 
 exports.updateMe = catchAsync(async function (req, res, next) {
   // check if user want to change the password
@@ -34,7 +74,10 @@ exports.updateMe = catchAsync(async function (req, res, next) {
     );
   }
 
-  const filteredData = filterBody(req.body, 'name', 'email');
+  if (req.file) {
+    req.body.photo = req.file.filename;
+  }
+  const filteredData = filterBody(req.body, 'name', 'email', 'photo');
 
   // find the user and update filtered data
   const updatedUser = await User.findByIdAndUpdate(req.user._id, filteredData, {
@@ -57,24 +100,19 @@ exports.deleteMe = catchAsync(async function (req, res, next) {
     stauts: 'success',
   });
 });
-
-exports.getUser = (req, res) => {
-  res.status(500).json({
-    status: 'error',
-    message: 'This is not defined yet',
-  });
+exports.getMe = function (req, res, next) {
+  req.params.id = req.user._id;
+  next();
 };
+
+exports.getUser = factory.getOne(User);
+
 exports.createUser = (req, res) => {
   res.status(500).json({
     status: 'error',
-    message: 'This is not defined yet',
+    message: 'For creating new account please visit: /signup',
   });
 };
 
-exports.updateUser = (req, res) => {
-  res.status(500).json({
-    status: 'error',
-    message: 'This is not defined yet',
-  });
-};
+exports.updateUser = factory.updateOne(User);
 exports.deleteUser = factory.deleteOne(User);

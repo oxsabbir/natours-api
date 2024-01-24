@@ -46,22 +46,25 @@ const tourSchema = new mongoose.Schema(
     },
     priceDiscount: Number,
 
-    summery: {
+    summary: {
       type: String,
       trim: true,
       require: [true, 'A tour must a have a summery'],
+    },
+    description: {
+      type: String,
     },
     imageCover: {
       type: String,
       require: [true, 'A tour must have a cove image'],
     },
-    images: [String],
     createdAt: {
       type: Date,
       default: Date.now(),
     },
+    images: [String],
 
-    startsDate: [Date],
+    startDates: [Date],
 
     // GEOJSON
 
@@ -100,6 +103,12 @@ const tourSchema = new mongoose.Schema(
 
   { toJSON: { virtuals: true }, toObject: { virtuals: true } },
 );
+
+// adding indexes for improving our reading performance
+
+tourSchema.index({ price: 1, ratingsAverage: -1 });
+tourSchema.index({ slug: 1 });
+tourSchema.index({ startLocation: '2dsphere' });
 
 // Virtual Properties / a virtual is only a property not a middleware so we don't need the next function
 
@@ -149,6 +158,9 @@ tourSchema.pre('aggregate', function (next) {
   // in aggregation "this" mean the aggregation object
   // then we can accesss the pipeline method from there and modify that as we want and add some more stages
   // by executing that pipeline method we got our pipeline array and there we are adding our aggregate "match" stage.
+  if (this.pipeline()[0].$geoNear) {
+    return next();
+  }
   this.pipeline().unshift({ $match: { isSecret: { $ne: true } } });
   next();
 });

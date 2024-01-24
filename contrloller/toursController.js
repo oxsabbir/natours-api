@@ -1,102 +1,86 @@
+const multer = require('multer');
+
+const sharp = require('sharp');
+
 const Tour = require('../model/tourModel');
-const APIFeature = require('../utils/apiFeatures');
 const AppError = require('../utils/AppError');
+// const APIFeature = require('../utils/apiFeatures');
+// const AppError = require('../utils/AppError');
 const catchAsync = require('../utils/catchAsync');
 
 const factory = require('./factoryHandler');
 
+// setting storage for multer
+const multerStorage = multer.memoryStorage();
+
+const fileFilter = function (req, file, cb) {
+  if (file.mimetype.startsWith('image')) {
+    cb(null, true);
+  } else {
+    cb(new AppError('Not an image! Please upload images.', 400));
+  }
+};
+
 // 2 ROUTE HANDLER
 
-exports.getAllTour = catchAsync(async (req, res, next) => {
-  // const quryObject = { ...req.query };
-  // const excludedItem = ['limit', 'page', 'sort', 'fields'];
-  // excludedItem.forEach((el) => delete quryObject[el]);
+// uploading image to update tours image
 
-  // // Filtering in advance for less then greater then
-  // let queryStr = JSON.stringify(quryObject);
-  // queryStr = queryStr.replace(
-  //   /\b(gte|gt|lte|lt)\b/g,
-  //   (matchValue) => `$${matchValue}`,
-  // );
+exports.uploadTourImage = multer({
+  storage: multerStorage,
+  fileFilter,
+}).fields([
+  {
+    name: 'imageCover',
+    maxCount: 1,
+  },
+  {
+    name: 'images',
+    maxCount: 3,
+  },
+]);
 
-  // // BUILDING QUERY
-  // let query = Tour.find(JSON.parse(queryStr));
+// Now proccessing and uploading to the filesystem
 
-  // // SORTING METHOD
-  // if (req.query.sort) {
-  //   const dataOfSort = req.query.sort.split(',').join(' ');
-  //   query = query.sort(dataOfSort);
-  // }
-  // // With some of the field
-  // if (req.query.fields) {
-  //   let dataOfField = req.query.fields.split(',').join(' ');
-  //   query = query.select(dataOfField);
-  // } else {
-  //   query = query.select('-__v');
-  // }
+exports.resizeTourImage = catchAsync(async function (req, res, next) {
+  // uploading the cover
+  req.body.imageCover = `tour-${req.params.id}-${Date.now()}.jpeg`;
+  await sharp(req.files.imageCover[0].buffer)
+    .resize(2000, 1333)
+    .toFormat('jpeg')
+    .jpeg({ quality: 90 })
+    .toFile(`public/img/tours/${req.body.imageCover}`);
 
-  // // with some pagination
-  // const page = req.query.page * 1 || 1;
-  // const limit = req.query.limit * 1 || 100;
-  // const skipper = (page - 1) * limit;
+  // uploading tour image
+  const filePath = [];
 
-  // if (req.query.page) {
-  //   query = query.skip(skipper).limit(limit);
-  // }
+  Promise.all(
+    req.files.images.map(async (files, i) => {
+      let fileName = `tour-${req.params.id}-${Date.now()}-${i + 1}.jpeg`;
+      filePath.push(fileName);
+      await sharp(files.buffer)
+        .resize(2000, 1333)
+        .toFormat('jpeg')
+        .jpeg({ quality: 90 })
+        .toFile(`public/img/tours/${fileName}`);
+      // return this;
+    }),
+  );
 
-  // EXECUTING QUERY
-  const features = new APIFeature(Tour.find(), req.query)
-    .filter()
-    .sort()
-    .limitFields()
-    .paginate();
+  req.body.images = filePath;
 
-  const allTours = await features.query;
-
-  // SENDING RESPONSE
-  res.status(200).json({
-    status: 'success',
-    results: allTours.length,
-    data: {
-      tours: allTours,
-    },
-  });
+  next();
 });
 
+exports.getAllTour = factory.getAll(Tour);
 exports.deleteTour = factory.deleteOne(Tour);
 
 exports.updateTour = factory.updateOne(Tour);
-
-exports.getTour = catchAsync(async (req, res, next) => {
-  const { id } = req.params;
-  // const singleTour = await Tour.findOne({ _id: `${id}` });
-  const singleTour = await Tour.findById(id).populate('reviews');
-
-  if (!singleTour) {
-    return next(new AppError('There is not tour found with provied ID', 404));
-  }
-  res.status(200).json({
-    status: 'success',
-    data: {
-      tour: singleTour,
-    },
-  });
-});
-
-exports.addTour = catchAsync(async (req, res) => {
-  // const createTours = await Tour.create(req.body);
-  const tourData = await Tour.create(req.body);
-  res.status(200).json({
-    status: 'success',
-    data: {
-      tour: tourData,
-    },
-  });
-});
+exports.getTour = factory.getOne(Tour, { path: 'reviews' });
+exports.addTour = factory.createNew(Tour);
 
 exports.getTourStats = catchAsync(async (req, res) => {
   const stats = await Tour.aggregate([
-    { $match: { ratingAverage: { $gte: 4.5 } } },
+    { $match: { ratingsAverage: { $gte: 4.5 } } },
     {
       $group: {
         _id: '$difficulty',
@@ -111,6 +95,7 @@ exports.getTourStats = catchAsync(async (req, res) => {
       $sort: { maxPrice: 1 },
     },
   ]);
+
   res.status(200).json({
     status: 'success',
     data: {
@@ -121,13 +106,14 @@ exports.getTourStats = catchAsync(async (req, res) => {
 
 exports.getMonthlyPlan = catchAsync(async (req, res) => {
   const year = req.params.year * 1;
+
   const monthlyStats = await Tour.aggregate([
     {
-      $unwind: '$startsDate',
+      $unwind: '$startDates',
     },
     {
       $match: {
-        startsDate: {
+        startDates: {
           $gte: new Date(`${year}-01-01`),
           $lte: new Date(`${year}-12-31`),
         },
@@ -135,7 +121,7 @@ exports.getMonthlyPlan = catchAsync(async (req, res) => {
     },
     {
       $group: {
-        _id: { $month: '$startsDate' },
+        _id: { $month: '$startDates' },
         numOfTours: { $sum: 1 },
         tours: { $push: '$name' },
       },
@@ -158,6 +144,64 @@ exports.getMonthlyPlan = catchAsync(async (req, res) => {
     data: {
       results: monthlyStats.length,
       tour: monthlyStats,
+    },
+  });
+});
+
+exports.getTourWithin = catchAsync(async function (req, res, next) {
+  const { distance, latlng, unit } = req.params;
+  const [lat, lng] = latlng.split(',');
+  const radius = unit === 'mi' ? distance / 3963.2 : distance / 6378.1;
+
+  if (!lat || !lng) {
+    next(new AppError('Please provive location coordinates', 404));
+  }
+
+  const tour = await Tour.find({
+    startLocation: { $geoWithin: { $centerSphere: [[lng, lat], radius] } },
+  });
+
+  res.status(200).json({
+    status: 'success',
+    results: tour.length,
+    data: {
+      tours: tour,
+    },
+  });
+});
+
+exports.getDistance = catchAsync(async function (req, res, next) {
+  const { latlng, unit } = req.params;
+  const [lat, lng] = latlng.split(',');
+
+  const multiplier = unit === 'mi' ? 0.000621371 : 0.001;
+  if (!lat || !lng) {
+    next(new AppError('Please provive location coordinates', 404));
+  }
+
+  const distance = await Tour.aggregate([
+    {
+      $geoNear: {
+        near: {
+          type: 'Point',
+          coordinates: [lng * 1, lat * 1],
+        },
+        distanceField: 'distance',
+        distanceMultiplier: multiplier,
+      },
+    },
+    {
+      $project: {
+        distance: 1,
+        name: 1,
+      },
+    },
+  ]);
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      data: distance,
     },
   });
 });

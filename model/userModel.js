@@ -27,14 +27,16 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    require: [true, 'A user email is require'],
+    require: [true, 'A Password is require'],
     minlength: 8,
     select: false,
   },
+
   passwordChangedAt: Date,
+
   ConfirmPassword: {
     type: String,
-    require: [true, 'A user email is require'],
+    require: true,
     validate: {
       validator: function (el) {
         return this.password === el;
@@ -87,7 +89,6 @@ userSchema.methods.createPasswordResetToken = function () {
     .digest('hex');
   this.passwordExpiresIn = Date.now() + 10 * 60 * 1000;
 
-  console.log({ resetToken }, this.passwordResetToken);
   return resetToken;
 };
 
